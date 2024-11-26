@@ -1,6 +1,6 @@
 # DAO Ecosystem Analyzer
 
-A comprehensive tool for analyzing Decentralized Autonomous Organizations (DAOs) across multiple platforms including Aragon, DAOhaus, and DAOstack.
+A tool for analyzing Decentralized Autonomous Organizations (DAOs) across multiple platforms including Aragon, DAOhaus, and DAOstack.
 
 ## Overview
 
