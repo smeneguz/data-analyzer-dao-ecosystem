@@ -74,32 +74,38 @@ class DAOstackAnalyzer(PlatformAnalyzer):
     def _calculate_activity_metrics(self, 
                                   dfs: Dict[str, pd.DataFrame],
                                   current_time: pd.Timestamp) -> Dict:
-        """Calculate detailed activity metrics for DAOstack organizations."""
         metrics = {
             "highly_active": 0,
             "moderately_active": 0,
             "minimally_active": 0,
             "potential_test": 0,
             "active_organizations": 0,
-            "inactive_organizations": 0
+            "inactive_organizations": 0,
+            "detailed_activity": {
+                "highly_active_daos": [],
+                "moderately_active_daos": []
+            }
         }
         
         for _, dao in dfs['daos'].iterrows():
             dao_address = dao['dao']
+            dao_name = dao['name'] if 'name' in dao and dao['name'] else 'Unnamed'
             
             # Get DAO's activities
-            dao_proposals = dfs['proposals'][dfs['proposals']['dao'] == dao_address]
-            dao_votes = dfs['votes'][dfs['votes']['dao'] == dao_address]
-            dao_stakes = dfs['stakes'][dfs['stakes']['dao'] == dao_address]
-            dao_reputation = dfs['reputationHolders'][
-                dfs['reputationHolders']['dao'] == dao_address
+            dao_proposals = dfs['proposals'][
+                dfs['proposals']['dao'] == dao_address
+            ]
+            dao_votes = dfs['votes'][
+                dfs['votes']['dao'] == dao_address
+            ]
+            dao_stakes = dfs['stakes'][
+                dfs['stakes']['dao'] == dao_address
             ]
             
             # Calculate metrics
             proposal_count = len(dao_proposals)
             vote_count = len(dao_votes)
             stake_count = len(dao_stakes)
-            reputation_holder_count = len(dao_reputation)
             
             # Get latest activity
             latest_dates = []
@@ -111,25 +117,33 @@ class DAOstackAnalyzer(PlatformAnalyzer):
                 latest_dates.append(dao_stakes['createdAt'].max())
             
             days_since_last_activity = 999999
+            last_activity = None
             if latest_dates:
                 last_activity = max(latest_dates)
                 days_since_last_activity = (current_time - last_activity).days
             
-            # Categorize DAO
-            if proposal_count <= 2 and vote_count <= 2 and reputation_holder_count <= 2:
+            dao_info = {
+                'address': dao_address,
+                'name': dao_name,
+                'proposal_count': proposal_count,
+                'vote_count': vote_count,
+                'stake_count': stake_count,
+                'last_activity': last_activity
+            }
+            
+            if proposal_count <= 2 and vote_count <= 2:
                 metrics["potential_test"] += 1
             elif days_since_last_activity != 999999:
-                # Different criteria for DAOstack based on its governance model
-                if (days_since_last_activity <= 30 and 
-                    (proposal_count >= 3 or vote_count >= 5 or stake_count >= 5)):
+                if days_since_last_activity <= 30 and (proposal_count >= 3 or vote_count >= 5):
                     metrics["highly_active"] += 1
-                elif (days_since_last_activity <= 90 and 
-                      (proposal_count >= 1 or vote_count >= 3 or stake_count >= 3)):
+                    metrics["detailed_activity"]["highly_active_daos"].append(dao_info)
+                elif days_since_last_activity <= 90:
                     metrics["moderately_active"] += 1
+                    metrics["detailed_activity"]["moderately_active_daos"].append(dao_info)
                 else:
                     metrics["minimally_active"] += 1
                 metrics["active_organizations"] += 1
             else:
                 metrics["inactive_organizations"] += 1
-            
+                
         return metrics

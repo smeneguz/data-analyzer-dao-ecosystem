@@ -70,20 +70,24 @@ class DAOhausAnalyzer(PlatformAnalyzer):
     def _calculate_activity_metrics(self, 
                                   dfs: Dict[str, pd.DataFrame],
                                   current_time: pd.Timestamp) -> Dict:
-        """Calculate detailed activity metrics for DAOhaus organizations."""
         metrics = {
             "highly_active": 0,
             "moderately_active": 0,
             "minimally_active": 0,
             "potential_test": 0,
             "active_organizations": 0,
-            "inactive_organizations": 0
+            "inactive_organizations": 0,
+            "detailed_activity": {
+                "highly_active_daos": [],
+                "moderately_active_daos": []
+            }
         }
         
         for _, dao in dfs['moloches'].iterrows():
             moloch_address = dao['molochAddress']
+            dao_name = dao['name'] if 'name' in dao and dao['name'] else 'Unnamed'
             
-            # Get DAO's proposals, votes, and members
+            # Get DAO's activities
             dao_proposals = dfs['proposals'][
                 dfs['proposals']['molochAddress'] == moloch_address
             ]
@@ -93,16 +97,11 @@ class DAOhausAnalyzer(PlatformAnalyzer):
             dao_members = dfs['members'][
                 dfs['members']['molochAddress'] == moloch_address
             ]
-            dao_ragequits = dfs['rageQuits'][
-                dfs['rageQuits']['molochAddress'] == moloch_address
-            ]
             
             # Calculate metrics
-            age_days = (current_time - dao['createdAt']).days
             proposal_count = len(dao_proposals)
             vote_count = len(dao_votes)
             member_count = len(dao_members)
-            ragequit_count = len(dao_ragequits)
             
             # Get latest activity
             latest_dates = []
@@ -112,22 +111,33 @@ class DAOhausAnalyzer(PlatformAnalyzer):
                 latest_dates.append(dao_votes['createdAt'].max())
             
             days_since_last_activity = 999999
+            last_activity = None
             if latest_dates:
                 last_activity = max(latest_dates)
                 days_since_last_activity = (current_time - last_activity).days
             
-            # Categorize DAO
-            if age_days < 7 and proposal_count <= 2 and member_count <= 2:
+            dao_info = {
+                'address': moloch_address,
+                'name': dao_name,
+                'proposal_count': proposal_count,
+                'vote_count': vote_count,
+                'member_count': member_count,
+                'last_activity': last_activity or dao['createdAt']
+            }
+            
+            if proposal_count <= 2 and vote_count <= 2 and member_count <= 2:
                 metrics["potential_test"] += 1
             elif days_since_last_activity != 999999:
                 if days_since_last_activity <= 30 and (proposal_count >= 5 or vote_count >= 10):
                     metrics["highly_active"] += 1
-                elif days_since_last_activity <= 90 and (proposal_count >= 2 or vote_count >= 5):
+                    metrics["detailed_activity"]["highly_active_daos"].append(dao_info)
+                elif days_since_last_activity <= 90:
                     metrics["moderately_active"] += 1
+                    metrics["detailed_activity"]["moderately_active_daos"].append(dao_info)
                 else:
                     metrics["minimally_active"] += 1
                 metrics["active_organizations"] += 1
             else:
                 metrics["inactive_organizations"] += 1
-            
+                
         return metrics

@@ -8,6 +8,8 @@ def cli():
     """DAO Analyzer - A tool for analyzing DAO platforms data."""
     pass
 
+# src/presentation/cli/main.py
+
 @cli.command()
 @click.option('--platform', 
               type=click.Choice(['aragon', 'daohaus', 'daostack'], case_sensitive=False),
@@ -20,23 +22,62 @@ def active_organizations(platform):
         service = DAOAnalyzerService(repository)
         result = service.get_active_organizations(platform)
         
-        click.echo(f"\nPlatform: {platform.upper()}")
-        click.echo("=" * 40)
+        click.echo(f"\n{click.style(f'Platform: {platform.upper()}', fg='green', bold=True)}")
+        click.echo("=" * 50)
+        
+        # Basic statistics
+        click.echo(f"\n{click.style('Overview:', fg='blue', bold=True)}")
         click.echo(f"Total Organizations: {result['total_organizations']}")
         click.echo(f"Active Organizations: {result['active_organizations']}")
         click.echo(f"Inactive Organizations: {result['inactive_organizations']}")
         
         # Activity breakdown
-        click.echo("\nActivity Breakdown:")
-        click.echo(f"Highly Active (>5 tx, last 30 days): {result.get('highly_active', 0)}")
-        click.echo(f"Moderately Active (last 90 days): {result.get('moderately_active', 0)}")
-        click.echo(f"Minimally Active: {result.get('minimally_active', 0)}")
-        click.echo(f"Potential Test Organizations: {result.get('test_orgs', 0)}")
+        click.echo(f"\n{click.style('Activity Breakdown:', fg='blue', bold=True)}")
+        click.echo(f"Highly Active: {result['highly_active']}")
+        click.echo(f"Moderately Active: {result['moderately_active']}")
+        click.echo(f"Minimally Active: {result['minimally_active']}")
+        click.echo(f"Potential Test Organizations: {result['potential_test']}")
+        
+        # Detailed DAO information
+        if 'detailed_activity' in result:
+            # Highly active DAOs
+            if result['detailed_activity']['highly_active_daos']:
+                click.echo(f"\n{click.style('Highly Active DAOs:', fg='green', bold=True)}")
+                for dao in result['detailed_activity']['highly_active_daos']:
+                    click.echo("-" * 40)
+                    click.echo(f"Name: {dao['name']}")
+                    click.echo(f"Address: {dao['address']}")
+                    if 'tx_count' in dao:
+                        click.echo(f"Transactions: {dao['tx_count']}")
+                    if 'proposal_count' in dao:
+                        click.echo(f"Proposals: {dao['proposal_count']}")
+                    if 'vote_count' in dao:
+                        click.echo(f"Votes: {dao['vote_count']}")
+                    if 'member_count' in dao:
+                        click.echo(f"Members: {dao['member_count']}")
+                    click.echo(f"Last Activity: {dao['last_activity'].strftime('%Y-%m-%d')}")
+            
+            # Moderately active DAOs
+            if result['detailed_activity']['moderately_active_daos']:
+                click.echo(f"\n{click.style('Moderately Active DAOs:', fg='yellow', bold=True)}")
+                for dao in result['detailed_activity']['moderately_active_daos']:
+                    click.echo("-" * 40)
+                    click.echo(f"Name: {dao['name']}")
+                    click.echo(f"Address: {dao['address']}")
+                    if 'tx_count' in dao:
+                        click.echo(f"Transactions: {dao['tx_count']}")
+                    if 'proposal_count' in dao:
+                        click.echo(f"Proposals: {dao['proposal_count']}")
+                    if 'vote_count' in dao:
+                        click.echo(f"Votes: {dao['vote_count']}")
+                    if 'member_count' in dao:
+                        click.echo(f"Members: {dao['member_count']}")
+                    click.echo(f"Last Activity: {dao['last_activity'].strftime('%Y-%m-%d')}")
         
         # Calculate and display activity rate
         if result['total_organizations'] > 0:
             activity_rate = (result['active_organizations'] / result['total_organizations']) * 100
-            click.echo(f"\nOverall Activity Rate: {activity_rate:.2f}%")
+            click.echo(f"\n{click.style('Overall Activity Rate:', fg='blue', bold=True)} {activity_rate:.2f}%")
         
     except ValueError as e:
         click.echo(f"Error: {str(e)}", err=True)

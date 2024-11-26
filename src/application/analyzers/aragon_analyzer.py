@@ -38,7 +38,6 @@ class AragonAnalyzer(PlatformAnalyzer):
             # Calculate activity metrics
             activity_metrics = self._calculate_activity_metrics(
                 dfs, 
-                org_addresses, 
                 current_time
             )
             
@@ -74,53 +73,62 @@ class AragonAnalyzer(PlatformAnalyzer):
 
     def _calculate_activity_metrics(self, 
                                   dfs: Dict[str, pd.DataFrame],
-                                  org_addresses: set,
                                   current_time: pd.Timestamp) -> Dict:
-        """
-        Calculate detailed activity metrics for organizations.
-        """
         metrics = {
             "highly_active": 0,
             "moderately_active": 0,
             "minimally_active": 0,
-            "test_orgs": 0
+            "potential_test": 0,
+            "active_organizations": 0,
+            "inactive_organizations": 0,
+            "detailed_activity": {
+                "highly_active_daos": [],
+                "moderately_active_daos": []
+            }
         }
         
-        for org_address in org_addresses:
+        for _, dao in dfs['organizations'].iterrows():
+            org_address = dao['orgAddress']
+            org_name = dao['name'] if 'name' in dao and dao['name'] else 'Unnamed'
+            
             # Get organization's transactions
             org_tx = dfs['transactions'][
                 dfs['transactions']['orgAddress'] == org_address
             ]
             
-            # Get organization creation date
-            org_info = dfs['organizations'][
-                dfs['organizations']['orgAddress'] == org_address
-            ]
-            
-            if len(org_info) == 0:
-                continue
-                
-            creation_date = org_info['createdAt'].iloc[0]
-            
             # Calculate metrics
-            age_days = (current_time - creation_date).days
             tx_count = len(org_tx)
+            creation_date = dao['createdAt']
+            age_days = (current_time - creation_date).days
             
             if tx_count > 0:
                 last_tx_date = org_tx['date'].max()
                 days_since_last_tx = (current_time - last_tx_date).days
             else:
                 days_since_last_tx = age_days
-            
-            # Categorize organization
+
+            # Categorize DAO
             if age_days < 7 and tx_count <= 2:
-                metrics["test_orgs"] += 1
-            elif tx_count > 0:  # Only categorize if there are transactions
+                metrics["potential_test"] += 1
+            elif tx_count > 0:
+                dao_info = {
+                    'address': org_address,
+                    'name': org_name,
+                    'tx_count': tx_count,
+                    'last_activity': last_tx_date if tx_count > 0 else creation_date,
+                    'age_days': age_days
+                }
+                
                 if days_since_last_tx <= 30 and tx_count >= 5:
                     metrics["highly_active"] += 1
+                    metrics["detailed_activity"]["highly_active_daos"].append(dao_info)
                 elif days_since_last_tx <= 90:
                     metrics["moderately_active"] += 1
+                    metrics["detailed_activity"]["moderately_active_daos"].append(dao_info)
                 else:
                     metrics["minimally_active"] += 1
-        
+                metrics["active_organizations"] += 1
+            else:
+                metrics["inactive_organizations"] += 1
+                
         return metrics
