@@ -50,25 +50,131 @@ class AragonAnalyzer(PlatformAnalyzer):
             
         except Exception as e:
             raise Exception(f"Error in Aragon analysis: {str(e)}")
+        
+
+    
+    def get_dao_details(self, platform_files: Dict, search_address: str) -> Dict:
+        dfs = self._load_dataframes(platform_files)
+        
+        details = {
+            "basic_info": {},
+            "membership": {},
+            "proposals": {},
+            "voting": {},
+            "treasury": {}
+        }
+        
+        # Basic info
+        org = dfs['organizations'][dfs['organizations']['orgAddress'] == search_address]
+        if len(org) == 0:
+            raise ValueError(f"Organization not found: {search_address}")
+        
+        details["basic_info"] = {
+            "name": org.iloc[0].get('name', 'Unnamed'),
+            "address": search_address,
+            "created_at": pd.to_datetime(org.iloc[0]['createdAt'], unit='s'),
+            "network": org.iloc[0]['network']
+        }
+
+        # Membership info
+        if 'tokenHolders' in dfs:
+            holders = dfs['tokenHolders'][dfs['tokenHolders']['organizationAddress'] == search_address].copy()
+            holders.loc[:, 'balance'] = holders['balance'].astype('float64')
+            details["membership"] = {
+                "total_members": len(holders['address'].unique()),
+                "active_members": len(holders[holders['balance'] > 0]['address'].unique())
+            }
+            if 'miniMeTokens' in dfs:
+                tokens = dfs['miniMeTokens'][dfs['miniMeTokens']['orgAddress'] == search_address]
+                if not tokens.empty:
+                    details["membership"]["total_token_supply"] = format(float(tokens['totalSupply'].iloc[0]), '.2e')
+
+        # Proposals/Votes
+        if 'votes' in dfs:
+            votes = dfs['votes'][dfs['votes']['orgAddress'] == search_address]
+            total_votes = len(votes)
+            executed = votes['executed'].fillna(False)
+            details["proposals"] = {
+                "total_proposals": total_votes,
+                "passed_proposals": int(executed.sum()),
+                "failed_proposals": total_votes - int(executed.sum())
+            }
+            
+            if not votes.empty:
+                recent = votes.sort_values('startDate', ascending=False).head(5)
+                details["proposals"]["recent"] = []
+                for _, vote in recent.iterrows():
+                    try:
+                        yea = format(float(vote.get('yea', 0)), '.2e')
+                        nay = format(float(vote.get('nay', 0)), '.2e')
+                        details["proposals"]["recent"].append({
+                            "type": f"Vote (Yes: {yea} / No: {nay})",
+                            "status": "Passed" if vote['executed'] else "Failed",
+                            "created_at": pd.to_datetime(vote['startDate'], unit='s')
+                        })
+                    except (ValueError, TypeError):
+                        continue
+
+        # Voting info
+        if 'casts' in dfs:
+            casts = dfs['casts'][dfs['casts']['orgAddress'] == search_address]
+            supports = casts['supports'].fillna(False)
+            details["voting"] = {
+                "total_votes_cast": len(casts),
+                "unique_voters": len(casts['voter'].unique()),
+                "support_votes": int(supports.sum()),
+                "against_votes": len(supports) - int(supports.sum())
+            }
+
+        # Treasury
+        if 'transactions' in dfs:
+            tx = dfs['transactions'][dfs['transactions']['orgAddress'] == search_address].copy()
+            if not tx.empty:
+                tx.loc[:, 'amount'] = tx['amount'].astype('float64')
+                details["treasury"] = {"token_balances": []}
+                
+                for token, group in tx.groupby('token'):
+                    incoming = group[group['isIncoming']]['amount'].sum()
+                    outgoing = group[~group['isIncoming']]['amount'].sum()
+                    balance = incoming - outgoing
+                    if balance != 0:
+                        details["treasury"]["token_balances"].append({
+                            "token": token,
+                            "balance": format(balance, '.2e'),
+                            "usd_value": 0
+                        })
+
+        return details
 
     def _load_dataframes(self, platform_files: Dict) -> Dict[str, pd.DataFrame]:
-        """
-        Load required dataframes.
-        """
+        """Load dataframes with optional file handling."""
         required_files = {
             'organizations': platform_files.get('organizations'),
-            'transactions': platform_files.get('transactions')
+        }
+        optional_files = {
+            'apps': platform_files.get('apps'),
+            'transactions': platform_files.get('transactions'),
+            'votes': platform_files.get('votes'),
+            'miniMeTokens': platform_files.get('miniMeTokens'),
+            'tokenHolders': platform_files.get('tokenHolders')
         }
         
         dataframes = {}
+        
+        # Load required files
         for name, path in required_files.items():
             if not path or not os.path.exists(path):
                 raise Exception(f"Required file not found: {name}")
-            try:
-                dataframes[name] = pd.read_csv(path)
-            except Exception as e:
-                raise Exception(f"Error reading {name}: {str(e)}")
-                
+            dataframes[name] = pd.read_csv(path)
+        
+        # Load optional files
+        for name, path in optional_files.items():
+            if path and os.path.exists(path):
+                try:
+                    dataframes[name] = pd.read_csv(path)
+                except Exception as e:
+                    print(f"Warning: Could not read optional file {name}: {str(e)}")
+        
         return dataframes
 
     def _calculate_activity_metrics(self, 

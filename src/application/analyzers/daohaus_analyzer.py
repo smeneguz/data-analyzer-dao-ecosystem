@@ -141,3 +141,91 @@ class DAOhausAnalyzer(PlatformAnalyzer):
                 metrics["inactive_organizations"] += 1
                 
         return metrics
+    
+
+
+    def get_dao_details(self, platform_files: Dict, search_address: str) -> Dict:
+        """Get detailed information about a specific DAOhaus DAO."""
+        dfs = self._load_dataframes(platform_files)
+        
+        details = {
+            "basic_info": {},
+            "membership": {},
+            "proposals": {},
+            "voting": {},
+            "ragequits": {},
+            "treasury": {}
+        }
+        
+        # Basic DAO info
+        moloch = dfs['moloches'][dfs['moloches']['molochAddress'] == search_address]
+        if len(moloch) == 0:
+            raise ValueError(f"DAO not found: {search_address}")
+            
+        details["basic_info"] = {
+            "name": moloch.iloc[0]['name'],
+            "address": search_address,
+            "created_at": pd.to_datetime(moloch.iloc[0]['createdAt'], unit='s'),
+            "version": moloch.iloc[0]['version'],
+            "total_shares": moloch.iloc[0]['totalShares'],
+            "total_loot": moloch.iloc[0]['totalLoot']
+        }
+        
+        # Membership analysis
+        members = dfs['members'][dfs['members']['molochAddress'] == search_address]
+        details["membership"] = {
+            "total_members": len(members),
+            "active_members": len(members[members['exists'] == True]),
+            "total_shares_distributed": members['shares'].sum(),
+            "total_loot_distributed": members['loot'].sum()
+        }
+        
+        # Proposal analysis
+        proposals = dfs['proposals'][dfs['proposals']['molochAddress'] == search_address]
+        details["proposals"] = {
+            "total_proposals": len(proposals),
+            "passed_proposals": len(proposals[proposals['didPass'] == True]),
+            "failed_proposals": len(proposals[proposals['didPass'] == False]),
+            "sponsored_proposals": len(proposals[proposals['sponsored'] == True])
+        }
+        
+        # Get recent proposals
+        recent_proposals = proposals.sort_values('createdAt', ascending=False).head(5)
+        details["proposals"]["recent"] = recent_proposals.apply(
+            lambda x: {
+                "id": x['proposalId'],
+                "type": eval(x['details'])['proposalType'] if pd.notna(x['details']) else "Unknown",
+                "status": "Passed" if x['didPass'] else "Failed",
+                "created_at": pd.to_datetime(x['createdAt'], unit='s')
+            }, axis=1
+        ).tolist()
+        
+        # Voting analysis
+        votes = dfs['votes'][dfs['votes']['molochAddress'] == search_address]
+        details["voting"] = {
+            "total_votes": len(votes),
+            "unique_voters": len(votes['memberAddress'].unique())
+        }
+        
+        # RageQuit analysis
+        ragequits = dfs['rageQuits'][dfs['rageQuits']['molochAddress'] == search_address]
+        details["ragequits"] = {
+            "total_ragequits": len(ragequits),
+            "total_shares_ragequit": ragequits['shares'].sum(),
+            "total_loot_ragequit": ragequits['loot'].sum()
+        }
+        
+        # Treasury analysis
+        if 'tokenBalances' in dfs:
+            balances = dfs['tokenBalances'][dfs['tokenBalances']['molochAddress'] == search_address]
+            details["treasury"] = {
+                "token_balances": balances.apply(
+                    lambda x: {
+                        "token": x['symbol'],
+                        "balance": x['balanceFloat'],
+                        "usd_value": x['usdValue']
+                    }, axis=1
+                ).tolist()
+            }
+        
+        return details

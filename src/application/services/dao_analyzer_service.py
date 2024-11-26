@@ -112,3 +112,31 @@ class DAOAnalyzerService:
             structure[platform.name] = platform_files
             
         return structure
+    
+
+    def get_dao_details(self, platform_name: str, search_address: str) -> Dict:
+        """Get comprehensive details about a specific DAO address."""
+        platforms = self.dao_repository.get_all_platforms()
+        platform = next((p for p in platforms if p.name.lower() == platform_name.lower()), None)
+        
+        if not platform:
+            raise ValueError(f"Platform {platform_name} not found")
+            
+        # Get all files for the platform
+        platform_files = {}
+        base_path = self.dao_repository.base_path
+        
+        # Load all available CSV files
+        for file in platform.files:
+            file_path = os.path.join(base_path, platform_name, file.name)
+            platform_files[file.name.split('.')[0]] = file_path
+        
+        # Get appropriate analyzer
+        analyzer = self.analyzers.get(platform_name.lower())
+        if not analyzer:
+            raise ValueError(f"No analyzer available for {platform_name}")
+            
+        try:
+            return analyzer.get_dao_details(platform_files, search_address)
+        except Exception as e:
+            raise Exception(f"Error analyzing DAO details: {str(e)}")

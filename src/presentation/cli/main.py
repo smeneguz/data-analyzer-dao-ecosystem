@@ -2,13 +2,81 @@
 import click
 from ...application.services.dao_analyzer_service import DAOAnalyzerService
 from ...infrastructure.persistence.csv_dao_repository import CSVDAORepository
+from ...infrastructure.persistence.csv_dao_repository import ARAGON_DESCRIPTIONS
+from typing import Dict
 
 @click.group()
 def cli():
     """DAO Analyzer - A tool for analyzing DAO platforms data."""
     pass
 
-# src/presentation/cli/main.py
+
+def _print_section(title: str, data: Dict, descriptions: Dict):
+    click.echo(f"\n{click.style(title, fg='blue', bold=True)}")
+    for key, value in data.items():
+        if key in descriptions:
+            click.echo(f"{key.replace('_', ' ').title()}: {value}")
+            click.echo(f"  {click.style('Description:', fg='yellow')} {descriptions[key]}")
+        else:
+            click.echo(f"{key.replace('_', ' ').title()}: {value}")
+
+
+@cli.command()
+@click.option('--platform', 
+              type=click.Choice(['aragon', 'daohaus', 'daostack'], case_sensitive=False),
+              required=True)
+@click.option('--address', required=True, help='DAO contract address to search for')
+def dao_details(platform, address):
+    """Show detailed information about a specific DAO."""
+    try:
+        repository = CSVDAORepository()
+        service = DAOAnalyzerService(repository)
+        details = service.get_dao_details(platform, address)
+        
+        click.echo(f"\n{click.style(f'DAO Details ({platform.upper()})', fg='green', bold=True)}")
+        click.echo("=" * 50)
+        
+        # Basic Info
+        click.echo(f"\n{click.style('Basic Information:', fg='blue', bold=True)}")
+        for key, value in details['basic_info'].items():
+            click.echo(f"{key.replace('_', ' ').title()}: {value}")
+        
+        # Membership
+        if 'membership' in details:
+            click.echo(f"\n{click.style('Membership:', fg='blue', bold=True)}")
+            for key, value in details['membership'].items():
+                click.echo(f"{key.replace('_', ' ').title()}: {value}")
+        
+        # Proposals
+        if 'proposals' in details:
+            click.echo(f"\n{click.style('Proposals:', fg='blue', bold=True)}")
+            for key, value in details['proposals'].items():
+                if key != 'recent':
+                    click.echo(f"{key.replace('_', ' ').title()}: {value}")
+            
+            if 'recent' in details['proposals']:
+                click.echo("\nRecent Proposals:")
+                for prop in details['proposals']['recent']:
+                    click.echo(f"- {prop['type']} ({prop['status']}) on {prop['created_at']}")
+        
+        # Voting
+        if 'voting' in details:
+            click.echo(f"\n{click.style('Voting:', fg='blue', bold=True)}")
+            for key, value in details['voting'].items():
+                click.echo(f"{key.replace('_', ' ').title()}: {value}")
+        
+        # Treasury
+        if 'treasury' in details and details['treasury'].get('token_balances'):
+            click.echo(f"\n{click.style('Treasury:', fg='blue', bold=True)}")
+            for balance in details['treasury']['token_balances']:
+                click.echo(f"- {balance['token']}: {balance['balance']} (${balance['usd_value']:,.2f})")
+
+        
+    except ValueError as e:
+        click.echo(f"Error: {str(e)}", err=True)
+    except Exception as e:
+        click.echo(f"Unexpected error: {str(e)}", err=True)
+
 
 @cli.command()
 @click.option('--platform', 

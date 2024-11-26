@@ -6,6 +6,40 @@ from ...domain.interfaces.dao_repository import DAORepository
 from ...domain.entities.dao_platform import DAOPlatform
 from ...domain.entities.dao_file import DAOFile
 
+
+ARAGON_DESCRIPTIONS = {
+    "basic_info": {
+        "name": "Organization name",
+        "address": "Smart contract address of the organization",
+        "created_at": "Creation timestamp",
+        "network": "Blockchain network (e.g., mainnet)",
+        "recovery_vault": "Address of recovery mechanism"
+    },
+    "apps": {
+        "total_apps": "Total installed applications",
+        "forwarder_apps": "Apps that can forward actions",
+        "upgradeable_apps": "Apps that can be upgraded",
+        "installed_apps": "List of installed Aragon apps"
+    },
+    "transactions": {
+        "total_transactions": "Total number of transactions",
+        "incoming_transactions": "Number of received transactions",
+        "outgoing_transactions": "Number of sent transactions",
+        "recent_transactions": "Last 5 transactions with details"
+    },
+    "votes": {
+        "total_votes": "Total number of votes created",
+        "executed_votes": "Number of executed votes",
+        "recent_votes": "Last 5 votes with results"
+    },
+    "tokens": {
+        "total_tokens": "Number of organization tokens",
+        "token_details": "Information about each token",
+        "holder_count": "Total token holders",
+        "unique_holders": "Unique addresses holding tokens"
+    }
+}
+
 class CSVDAORepository(DAORepository):
     """Implementation of DAORepository for CSV files."""
     
