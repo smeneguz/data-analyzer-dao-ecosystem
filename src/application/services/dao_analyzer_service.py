@@ -19,9 +19,9 @@ class DAOAnalyzerService:
         
         # Required files for each platform
         self.required_files = {
-            'aragon': ['organizations.csv', 'transactions.csv'],
-            'daohaus': ['moloches.csv', 'proposals.csv'],
-            'daostack': ['daos.csv', 'proposals.csv']
+            'aragon': [ 'organizations.csv', 'transactions.csv', 'votes.csv', 'tokenHolders.csv', 'apps.csv', 'casts.csv'],
+            'daohaus': ['moloches.csv', 'proposals.csv', 'votes.csv', 'members.csv', 'rageQuits.csv'],
+            'daostack': ['daos.csv', 'proposals.csv', 'votes.csv', 'stakes.csv', 'reputationHolders.csv']
         }
 
     def get_active_organizations(self, platform_name: str) -> Dict[str, int]:
@@ -68,3 +68,47 @@ class DAOAnalyzerService:
             return analyzer.get_organization_stats(platform_files)
         except Exception as e:
             raise Exception(f"Error analyzing {platform_name} data: {str(e)}")
+        
+    
+
+    def get_file_structure(self, platform_name: str = None) -> Dict:
+        """
+        Get detailed file and column information for platforms.
+        
+        Args:
+            platform_name: Optional; specific platform to analyze. If None, shows all platforms.
+            
+        Returns:
+            Dictionary containing file structures and column descriptions
+        """
+        platforms = self.dao_repository.get_all_platforms()
+        
+        if platform_name:
+            platform_name = platform_name.lower()
+            platform = next((p for p in platforms if p.name.lower() == platform_name), None)
+            if not platform:
+                raise ValueError(f"Platform {platform_name} not found")
+            platforms = [platform]
+
+        structure = {}
+        for platform in platforms:
+            platform_files = {}
+            for file in platform.files:
+                columns_info = {}
+                for col in file.columns:
+                    description = file.column_descriptions.get(col, "No description available")
+                    sample_values = [str(record.get(col, '')) for record in file.sample_data[:3]]
+                    columns_info[col] = {
+                        'description': description,
+                        'sample_values': sample_values
+                    }
+                
+                platform_files[file.name] = {
+                    'columns': columns_info,
+                    'total_columns': len(file.columns),
+                    'has_samples': bool(file.sample_data)
+                }
+            
+            structure[platform.name] = platform_files
+            
+        return structure

@@ -6,6 +6,6 @@ class PlatformAnalyzer(ABC):
     """Interface for platform-specific analysis implementations."""
     
     @abstractmethod
-    def get_organization_stats(self, platform_files: Dict) -> Dict[str, int]:
+    def get_organization_stats(self, platform_files: Dict) -> Dict:
         """Calculate organization statistics for a specific platform."""
         pass
