@@ -77,6 +77,11 @@ python -m src.presentation.cli.main active-organizations --platform aragon
 python -m src.presentation.cli.main active-organizations --platform daohaus
 python -m src.presentation.cli.main active-organizations --platform daostack
 
+Show information on a specific DAO:
+
+python -m src.presentation.cli.main dao-details --platform aragon --address 0xf47917b108ca4b820ccea2587546fbb9f7564b56
+python -m src.presentation.cli.main dao-details --platform daohaus --address 0xc9f0b44436fcdab396b93ba49d7d9ccc53dabd01
+
 ```
 
 Legenda: 
